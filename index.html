@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simulador Blackjack PWA</title>
+  <title>Simulador Blackjack </title>
 
   <!-- Manifest PWA -->
   <link rel="manifest" href="manifest.json" />
@@ -94,7 +94,7 @@
 </head>
 <body>
 
-  <h1>Simulador Estrategia de Blackjack PWA</h1>
+  <h1>Simulador Blackjack</h1>
 
   <button id="btnNuevaPartida">Repartir Cartas</button>
 
@@ -121,7 +121,7 @@
 
   <div class="consejo" style="display:none;" id="consejo">
     <details>
-      <summary>Ver consejo para la acción</summary>
+      <summary>Ver consejo</summary>
       <p id="textoConsejo"></p>
     </details>
   </div>
@@ -368,7 +368,7 @@
     let consejo = obtenerConsejo(mano, dealerCarta);
     let probabilidad = probabilidadGanar(mano, dealerCarta);
 
-    textoConsejo.textContent = `Consejo: ${consejo.accion}. Razón: ${consejo.razon}.\\nProbabilidad estimada de ganar: ${probabilidad}%`;
+    textoConsejo.textContent = `Consejo: ${consejo.accion}. Razón: ${consejo.razon}.Probabilidad estimada de ganar: ${probabilidad}%`;
     consejoDiv.style.display = 'block';
   }
 
