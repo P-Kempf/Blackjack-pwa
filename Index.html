@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simulador Blackjack PWA</title>
+
+  <!-- Manifest PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b3d0b" />
+  
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 1rem;
+      background-color: #0b3d0b;
+      color: #fff;
+      position: relative;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    button {
+      font-size: 1.2rem;
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      width: 100%;
+      cursor: pointer;
+    }
+    .acciones button {
+      width: 48%;
+      margin: 1% 1% 1% 0;
+    }
+    .cartas {
+      margin-top: 1rem;
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      gap: 1rem;
+      width: 100%;
+      max-width: 600px;
+    }
+    .mano {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      min-width: 150px;
+    }
+    .carta {
+      width: 60px;
+      height: 90px;
+      background-color: white;
+      color: black;
+      border: 1px solid #000;
+      border-radius: 8px;
+      text-align: center;
+      line-height: 90px;
+      font-weight: bold;
+      font-size: 1.2rem;
+      animation: aparecer 0.5s ease;
+      user-select: none;
+    }
+    @keyframes aparecer {
+      from { transform: scale(0); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .resultado {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+      font-weight: bold;
+      min-height: 3em;
+      white-space: pre-line;
+    }
+    .consejo {
+      margin-top: 0.5rem;
+      max-width: 600px;
+      background: #114411dd;
+      padding: 0.8rem;
+      border-radius: 6px;
+      user-select: none;
+    }
+    details {
+      margin-top: 0.8rem;
+      max-width: 600px;
+      color: #ddf;
+    }
+    summary {
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Simulador Estrategia de Blackjack PWA</h1>
+
+  <button id="btnNuevaPartida">Repartir Cartas</button>
+
+  <div class="acciones" style="display:none;">
+    <h3>¿Qué haces tú?</h3>
+    <button id="btnPedir">Pedir</button>
+    <button id="btnDoblar">Doblar</button>
+    <button id="btnPlantarse">Plantarse</button>
+    <button id="btnSeparar">Separar</button>
+  </div>
+
+  <div class="cartas">
+    <div>
+      <h3>Tu mano <span id="manoActual">(mano 1)</span></h3>
+      <div id="tusCartas" class="mano"></div>
+    </div>
+    <div>
+      <h3>Dealer</h3>
+      <div id="dealerCartas" class="mano"></div>
+    </div>
+  </div>
+
+  <div class="resultado" id="resultado"></div>
+
+  <div class="consejo" style="display:none;" id="consejo">
+    <details>
+      <summary>Ver consejo para la acción</summary>
+      <p id="textoConsejo"></p>
+    </details>
+  </div>
+
+  <button id="btnNuevaRonda" style="display:none;">🔁 Nueva Ronda</button>
+
+<script>
+  // Variables globales
+  let mazo = [];
+  let manosJugador = []; // Array de manos para separar
+  let manoActualIndex = 0;
+  let manoDealer = [];
+  let juegoTerminado = false;
+
+  // Crear mazo con 6 barajas y barajar
+  function crearMazo() {
+    const palos = ['♠','♥','♦','♣'];
+    const valores = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+    let nuevoMazo = [];
+    for (let i = 0; i < 6; i++) {
+      for (let palo of palos) {
+        for (let valor of valores) {
+          nuevoMazo.push(valor + palo);
+        }
+      }
+    }
+    return nuevoMazo.sort(() => Math.random() - 0.5);
+  }
+
+  function valorCarta(carta) {
+    const valor = carta.slice(0, -1);
+    if (['J','Q','K'].includes(valor)) return 10;
+    if (valor === 'A') return 11;
+    return parseInt(valor);
+  }
+
+  function calcularTotal(mano) {
+    let total = 0;
+    let ases = 0;
+    for (let carta of mano) {
+      let val = valorCarta(carta);
+      total += val;
+      if (val === 11) ases++;
+    }
+    while (total > 21 && ases > 0) {
+      total -= 10;
+      ases--;
+    }
+    return total;
+  }
+
+  function mostrarMano(id, mano) {
+    const cont = document.getElementById(id);
+    cont.innerHTML = '';
+    for (let carta of mano) {
+      const div = document.createElement('div');
+      div.className = 'carta';
+      div.textContent = carta;
+      cont.appendChild(div);
+    }
+  }
+
+  // Mostrar dealer con la primera carta visible o todas
+  function mostrarDealer(mostrarTodas = false) {
+    if (mostrarTodas) {
+      mostrarMano('dealerCartas', manoDealer);
+    } else {
+      mostrarMano('dealerCartas', [manoDealer[0]]);
+    }
+  }
+
+  // Elegir consejo (muy básico, para demo)
+  function obtenerConsejo(mano, dealerCarta) {
+    let total = calcularTotal(mano);
+    let dealerVal = valorCarta(dealerCarta);
+    if (total >= 17) return {accion: 'Plantarse', razon: 'Total alto, riesgo de pasarse si pides más cartas.'};
+    if (total <= 11) return {accion: 'Pedir', razon: 'Total bajo, pedir más cartas para acercarse a 21.'};
+    if (total >= 12 && total <= 16) {
+      if (dealerVal >= 7) return {accion: 'Pedir', razon: 'Dealer tiene carta alta, debes mejorar tu mano.'};
+      else return {accion: 'Plantarse', razon: 'Dealer tiene carta baja, es mejor plantarse.'};
+    }
+    return {accion: 'Pedir', razon: 'Situación estándar, pedir carta.'};
+  }
+
+  // Calcular probabilidad de ganar simplificada (basada en cartas restantes)
+  function probabilidadGanar(mano, dealerCarta) {
+    const totalJugador = calcularTotal(mano);
+    if (totalJugador > 21) return 0;
+
+    // Contar cartas restantes en mazo que ayudarían (valor < 22 - totalJugador)
+    let favorable = 0;
+    let totalRestantes = mazo.length;
+
+    for (let carta of mazo) {
+      let val = valorCarta(carta);
+      if (totalJugador + val <= 21) favorable++;
+    }
+    // También simplificamos que si dealer tiene menos de 17 tiene que pedir,
+    // aquí sólo devolvemos un porcentaje que indica "posible mejora"
+    // Nota: no es exacta, sólo ilustrativa
+    return Math.round((favorable / totalRestantes) * 100);
+  }
+
+  // Variables elementos DOM
+  const btnNuevaPartida = document.getElementById('btnNuevaPartida');
+  const btnPedir = document.getElementById('btnPedir');
+  const btnDoblar = document.getElementById('btnDoblar');
+  const btnPlantarse = document.getElementById('btnPlantarse');
+  const btnSeparar = document.getElementById('btnSeparar');
+  const btnNuevaRonda = document.getElementById('btnNuevaRonda');
+  const accionesDiv = document.querySelector('.acciones');
+  const resultadoDiv = document.getElementById('resultado');
+  const consejoDiv = document.getElementById('consejo');
+  const textoConsejo = document.getElementById('textoConsejo');
+  const manoActualSpan = document.getElementById('manoActual');
+
+  // Eventos
+  btnNuevaPartida.onclick = nuevaPartida;
+  btnPedir.onclick = pedirCarta;
+  btnDoblar.onclick = doblarApuesta;
+  btnPlantarse.onclick = plantarse;
+  btnSeparar.onclick = separar;
+  btnNuevaRonda.onclick = nuevaPartida;
+
+  function nuevaPartida() {
+    mazo = crearMazo();
+    manosJugador = [];
+    manoActualIndex = 0;
+    juegoTerminado = false;
+
+    // Repartir dos cartas para jugador y dealer
+    const manoInicial = [mazo.pop(), mazo.pop()];
+    manosJugador.push(manoInicial);
+    manoDealer = [mazo.pop(), mazo.pop()];
+
+    mostrarMano('tusCartas', manosJugador[manoActualIndex]);
+    mostrarDealer(false);
+    resultadoDiv.innerText = '';
+    consejoDiv.style.display = 'none';
+    accionesDiv.style.display = 'block';
+    btnNuevaRonda.style.display = 'none';
+    manoActualSpan.textContent = `(mano 1)`;
+    actualizarConsejoYProbabilidad();
+  }
+
+  function pedirCarta() {
+    if (juegoTerminado) return;
+    manosJugador[manoActualIndex].push(mazo.pop());
+    mostrarMano('tusCartas', manosJugador[manoActualIndex]);
+    if (calcularTotal(manosJugador[manoActualIndex]) > 21) {
+      // Pierde mano actual
+      resultadoDiv.innerText = `Mano ${manoActualIndex+1}: Te pasaste. Pierdes esta mano.`;
+      pasarAManoSiguiente();
+    } else {
+      resultadoDiv.innerText = '';
+      actualizarConsejoYProbabilidad();
+    }
+  }
+
+  function doblarApuesta() {
+    if (juegoTerminado) return;
+    // Doblar = pedir 1 carta y plantarse directamente
+    manosJugador[manoActualIndex].push(mazo.pop());
+    mostrarMano('tusCartas', manosJugador[manoActualIndex]);
+    plantarse();
+  }
+
+  function plantarse() {
+    if (juegoTerminado) return;
+
+    if (manoActualIndex < manosJugador.length -1) {
+      // Cambiar a siguiente mano para jugarla
+      resultadoDiv.innerText = `Mano ${manoActualIndex+1}: Plantado. Pasando a mano ${manoActualIndex+2}.`;
+      manoActualIndex++;
+      mostrarMano('tusCartas', manosJugador[manoActualIndex]);
+      mostrarDealer(false);
+      manoActualSpan.textContent = `(mano ${manoActualIndex+1})`;
+      actualizarConsejoYProbabilidad();
+    } else {
+      // Terminar juego: dealer juega y se muestra resultado
+      while (calcularTotal(manoDealer) < 17) {
+        manoDealer.push(mazo.pop());
+      }
+      mostrarDealer(true);
+
+      let resultados = [];
+      manosJugador.forEach((mano, i) => {
+        let totalJugador = calcularTotal(mano);
+        let totalDealer = calcularTotal(manoDealer);
+        let resultado;
+        if (totalJugador > 21) resultado = `Mano ${i+1}: Te pasaste. Pierdes.`;
+        else if (totalDealer > 21) resultado = `Mano ${i+1}: Dealer se pasó. Ganaste.`;
+        else if (totalJugador > totalDealer) resultado = `Mano ${i+1}: Ganaste.`;
+        else if (totalJugador < totalDealer) resultado = `Mano ${i+1}: Perdiste.`;
+        else resultado = `Mano ${i+1}: Empate.`;
+        resultados.push(resultado);
+      });
+
+      resultadoDiv.innerText = resultados.join('\\n');
+      accionesDiv.style.display = 'none';
+      btnNuevaRonda.style.display = 'block';
+      consejoDiv.style.display = 'none';
+      juegoTerminado = true;
+    }
+  }
+
+  function separar() {
+    if (juegoTerminado) return;
+    let mano = manosJugador[manoActualIndex];
+    if (mano.length === 2 && mano[0].slice(0, -1) === mano[1].slice(0, -1)) {
+      // Separar en dos manos
+      let carta1 = mano[0];
+      let carta2 = mano[1];
+      manosJugador.splice(manoActualIndex, 1);
+      manosJugador.splice(manoActualIndex, 0, [carta1], [carta2]);
+      // Robar una carta para cada mano
+      manosJugador[manoActualIndex].push(mazo.pop());
+      manosJugador[manoActualIndex+1].push(mazo.pop());
+      mostrarMano('tusCartas', manosJugador[manoActualIndex]);
+      resultadoDiv.innerText = 'Mano separada en dos manos.';
+      actualizarConsejoYProbabilidad();
+      btnSeparar.disabled = true;
+    } else {
+      resultadoDiv.innerText = 'No puedes separar esta mano.';
+    }
+  }
+
+  function pasarAManoSiguiente() {
+    if (manoActualIndex < manosJugador.length - 1) {
+      manoActualIndex++;
+      mostrarMano('tusCartas', manosJugador[manoActualIndex]);
+      mostrarDealer(false);
+      manoActualSpan.textContent = `(mano ${manoActualIndex+1})`;
+      actualizarConsejoYProbabilidad();
+      resultadoDiv.innerText += ` Pasando a mano ${manoActualIndex+1}.`;
+    } else {
+      plantarse();
+    }
+  }
+
+  function actualizarConsejoYProbabilidad() {
+    let mano = manosJugador[manoActualIndex];
+    let dealerCarta = manoDealer[0];
+    let consejo = obtenerConsejo(mano, dealerCarta);
+    let probabilidad = probabilidadGanar(mano, dealerCarta);
+
+    textoConsejo.textContent = `Consejo: ${consejo.accion}. Razón: ${consejo.razon}.\\nProbabilidad estimada de ganar: ${probabilidad}%`;
+    consejoDiv.style.display = 'block';
+  }
+
+  // Registrar service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(() => {
+      console.log('Service Worker registrado.');
+    });
+  }
+</script>
+
+</body>
+</html>
